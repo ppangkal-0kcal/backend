@@ -1,0 +1,139 @@
+// 빵칼(0-kcal) 데이터 모델 — ppangkal.md §4.2를 그대로 반영한다.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TransportMode {
+  walk
+  bike
+  bus
+}
+
+model User {
+  id                String   @id @default(cuid())
+  name              String
+  gender            String
+  age               Int
+  height            Float
+  weight            Float
+  activityLevel     String   @map("activity_level")
+  dailyGoalCalories Int      @map("daily_goal_calories")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  routes   Route[]
+  foodLogs FoodLog[]
+
+  @@map("users")
+}
+
+model Bakery {
+  id           String   @id @default(cuid())
+  name         String
+  latitude     Float
+  longitude    Float
+  address      String
+  rating       Float?
+  reviewCount  Int?     @map("review_count")
+  openingHours String?  @map("opening_hours")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  breadItems BreadItem[]
+  routes     Route[]
+
+  @@map("bakeries")
+}
+
+model BreadItem {
+  id          String  @id @default(cuid())
+  bakeryId    String  @map("bakery_id")
+  name        String
+  category    String?
+  price       Int
+  calories    Int
+  baseWeightG Int?    @map("base_weight_g")
+  carbG       Float?  @map("carb_g")
+  proteinG    Float?  @map("protein_g")
+  fatG        Float?  @map("fat_g")
+  // 데이터 출처 신뢰도: A(공식 제휴/영양성분표) / B(직접 조사·정제) / C(추정치, source_note 필수)
+  sourceGrade String? @map("source_grade")
+  sourceNote  String? @map("source_note")
+  imageUrl    String? @map("image_url")
+  isAvailable Boolean @default(true) @map("is_available")
+
+  bakery   Bakery    @relation(fields: [bakeryId], references: [id])
+  foodLogs FoodLog[]
+
+  @@unique([bakeryId, name])
+  @@map("bread_items")
+}
+
+// 한국관광공사 TourAPI 응답 캐시 — detail 조회(§12.4 detailCommon1/detailImage1)를 매 요청마다
+// 라이브 호출하지 않기 위한 read-through 캐시. fetchedAt이 오래되면 재조회 후 UPDATE로 갱신하고,
+// 절대 행을 삭제하지 않는다(COURSE_STOP 등 향후 참조 FK가 깨지는 것을 막기 위함 — bbangkal_erd_v3.md 참고).
+model TouristSpot {
+  contentId     String   @id @map("content_id")
+  contentTypeId String?  @map("content_type_id")
+  title         String
+  latitude      Float
+  longitude     Float
+  overview      String?
+  openingHours  String?  @map("opening_hours")
+  fetchedAt     DateTime @map("fetched_at")
+
+  images SpotImage[]
+
+  @@map("tourist_spots")
+}
+
+model SpotImage {
+  id        String @id @default(cuid())
+  contentId String @map("content_id")
+  originUrl String @map("origin_url")
+  seq       Int
+
+  spot TouristSpot @relation(fields: [contentId], references: [contentId], onDelete: Cascade)
+
+  @@unique([contentId, seq])
+  @@map("spot_images")
+}
+
+model Route {
+  id              String        @id @default(cuid())
+  userId          String        @map("user_id")
+  bakeryId        String        @map("bakery_id")
+  transportMode   TransportMode @map("transport_mode")
+  distance        Int
+  durationMinutes Int           @map("duration_minutes")
+  fixedMetValue   Float         @map("fixed_met_value")
+  caloriesBurned  Int?          @map("calories_burned")
+  startedAt       DateTime      @default(now()) @map("started_at")
+  completedAt     DateTime?     @map("completed_at")
+
+  user     User      @relation(fields: [userId], references: [id])
+  bakery   Bakery    @relation(fields: [bakeryId], references: [id])
+  foodLogs FoodLog[]
+
+  @@map("routes")
+}
+
+model FoodLog {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  breadItemId String   @map("bread_item_id")
+  routeId     String?  @map("route_id")
+  calories    Int
+  quantity    Int      @default(1)
+  photoUrl    String?  @map("photo_url")
+  loggedAt    DateTime @default(now()) @map("logged_at")
+
+  user      User      @relation(fields: [userId], references: [id])
+  breadItem BreadItem @relation(fields: [breadItemId], references: [id])
+  route     Route?    @relation(fields: [routeId], references: [id])
+
+  @@map("food_logs")
+}

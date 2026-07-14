@@ -1,0 +1,12 @@
+.claude/
+CLAUDE.md
+ppangkal.md
+bbangkal_erd_v3.md
+*.pdf
+
+node_modules/
+dist/
+coverage/
+.env
+.env.local
+*.log
