@@ -1,4 +1,5 @@
 import { env } from '../config/env';
+import { calculateCaloriesBurned, estimateWalkMinutes } from './calorieService';
 
 // 한국관광공사 TourAPI 연동 — 공모전 제출 요건상 필수 (CLAUDE.md 참고).
 // 사용 endpoint: locationBasedList2 / detailCommon2 / detailImage2
@@ -135,6 +136,45 @@ export async function findNearbyPark(params: {
 
   // arrange: 'E'로 이미 거리순 정렬되지만, 가장 가까운 항목을 명시적으로 보장한다.
   return spots.reduce((closest, spot) => (spot.distanceM < closest.distanceM ? spot : closest));
+}
+
+export interface SuggestedWalk {
+  content_id: string;
+  title: string;
+  round_trip_distance_m: number;
+  estimated_calories_burned: number;
+}
+
+const PARK_SUGGEST_RADIUS_M = 1000;
+
+// 빵집 좌표 기준 근처 공원을 찾아 왕복 산책 제안을 만든다 — idea.md §3: 도보 유도 대상이 아닌
+// 빵집(리스트 단계) 또는 도보 실측 거리가 짧았던 방문(투어 도착 단계) 둘 다에서 쓰는 공용 로직.
+// TourAPI 호출 실패는 부가 기능일 뿐이므로 호출부의 본 응답을 막지 않고 null을 반환한다.
+export async function buildParkWalkSuggestion(params: {
+  latitude: number;
+  longitude: number;
+  userWeightKg: number;
+}): Promise<SuggestedWalk | null> {
+  try {
+    const park = await findNearbyPark({
+      latitude: params.latitude,
+      longitude: params.longitude,
+      radiusM: PARK_SUGGEST_RADIUS_M,
+    });
+    if (!park) return null;
+
+    const roundTripDistanceM = Math.round(park.distanceM * 2);
+    const { caloriesBurned } = calculateCaloriesBurned(params.userWeightKg, estimateWalkMinutes(roundTripDistanceM));
+
+    return {
+      content_id: park.contentId,
+      title: park.title,
+      round_trip_distance_m: roundTripDistanceM,
+      estimated_calories_burned: caloriesBurned,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export interface RestaurantEnrichment {

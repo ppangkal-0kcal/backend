@@ -46,7 +46,7 @@
   - `radius_km` 기본값 3 — 5km로 보고 싶으면 그냥 `radius_km=5`로 호출 (별도 대응 불필요, 이미 지원됨).
   - `user_weight`를 같이 보내면 각 빵집에 `estimated_walk_calories`(도보 예상 소모 칼로리)가 계산돼서 옴. 안 보내면 `null`.
   - 응답의 `walk_recommended: true/false`가 곧 1.2km 컷오프 배지 — `true`면 "걸어가기 딱 좋은 거리예요!" 문구를 보여주면 됨.
-  - ⚠️ **알려진 제약**: "1.2km 초과 시 도착 후 산책 제안" 메시지는 지금 **이 목록 API엔 안 들어있다** — 실제로는 7단계(도착 신고, `POST /api/tours/:tourId/stops`) 시점에만 `suggested_walk`로 내려온다. 빵집 목록 단계에서 미리 보여주고 싶다면 백엔드에 추가 작업이 필요하니 미리 얘기해달라.
+  - "1.2km 초과 시 도착 후 산책 제안" 미리보기도 이 응답에 `suggested_walk`로 같이 온다 — `user_weight`를 보내야 채워지고(칼로리 계산에 필요), `walk_recommended: true`인 빵집은 항상 `null`(이미 도보로 가니 산책 제안이 필요 없음).
 - 빵집 상세(소개글/사진/영업정보): `GET /api/bakeries/{bakeryId}` — `tour_info` 필드에 TourAPI 등록된 유명 빵집만 소개글/사진/대표메뉴/영업시간 등이 채워짐, 미등록이면 `tour_info: null` (정상 동작, 에러 아님).
 
 ### 4단계 — 빵 선택 & 예상 칼로리 산출

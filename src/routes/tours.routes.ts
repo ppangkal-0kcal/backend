@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
-import { calculateCaloriesBurned, WALK_RECOMMEND_THRESHOLD_M, estimateWalkMinutes } from '../services/calorieService';
-import { findNearbyPark } from '../services/tourApiService';
+import { calculateCaloriesBurned, WALK_RECOMMEND_THRESHOLD_M } from '../services/calorieService';
+import { buildParkWalkSuggestion } from '../services/tourApiService';
 import { ApiError } from '../utils/ApiError';
 import { asyncHandler } from '../utils/asyncHandler';
 
@@ -10,8 +10,6 @@ import { asyncHandler } from '../utils/asyncHandler';
 // idea.md §2(8단계 흐름) 참고 — 도보만 추적하고, 실제 거리/시간/걸음 수는 클라이언트 센서 실측값이다.
 export const toursRouter = Router();
 toursRouter.use(requireAuth);
-
-const PARK_SUGGEST_RADIUS_M = 1000;
 
 /**
  * @openapi
@@ -109,7 +107,9 @@ toursRouter.post(
     // 도착 후 산책 제안은 손해 볼 게 없는 보너스 제안이다. 반대로 이미 1.2km 넘게 걸었다면
     // 충분히 걸은 것이므로 추가 제안을 하지 않는다.
     const suggestedWalk =
-      distanceM <= WALK_RECOMMEND_THRESHOLD_M ? await buildParkWalkSuggestion(bakery.id, user.weight) : null;
+      distanceM <= WALK_RECOMMEND_THRESHOLD_M
+        ? await buildParkWalkSuggestion({ latitude: bakery.latitude, longitude: bakery.longitude, userWeightKg: user.weight })
+        : null;
 
     res.status(201).json({
       id: stop.id,
@@ -234,36 +234,3 @@ toursRouter.get(
   }),
 );
 
-interface SuggestedWalk {
-  content_id: string;
-  title: string;
-  round_trip_distance_m: number;
-  estimated_calories_burned: number;
-}
-
-// TourAPI 조회 실패는 부가 기능(산책 제안)일 뿐이므로 방문 기록 생성 자체를 막지 않고 null로 넘어간다.
-async function buildParkWalkSuggestion(bakeryId: string, userWeightKg: number): Promise<SuggestedWalk | null> {
-  try {
-    const bakery = await prisma.bakery.findUnique({ where: { id: bakeryId } });
-    if (!bakery) return null;
-
-    const park = await findNearbyPark({
-      latitude: bakery.latitude,
-      longitude: bakery.longitude,
-      radiusM: PARK_SUGGEST_RADIUS_M,
-    });
-    if (!park) return null;
-
-    const roundTripDistanceM = Math.round(park.distanceM * 2);
-    const { caloriesBurned } = calculateCaloriesBurned(userWeightKg, estimateWalkMinutes(roundTripDistanceM));
-
-    return {
-      content_id: park.contentId,
-      title: park.title,
-      round_trip_distance_m: roundTripDistanceM,
-      estimated_calories_burned: caloriesBurned,
-    };
-  } catch {
-    return null;
-  }
-}

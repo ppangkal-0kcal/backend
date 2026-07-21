@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { calculateCaloriesBurned, estimateWalkMinutes, WALK_RECOMMEND_THRESHOLD_M } from '../services/calorieService';
-import { fetchRestaurantEnrichment } from '../services/tourApiService';
+import { buildParkWalkSuggestion, fetchRestaurantEnrichment } from '../services/tourApiService';
 import { ApiError } from '../utils/ApiError';
 import { asyncHandler } from '../utils/asyncHandler';
 import { haversineDistanceM, isBakeryOpenNow } from '../utils/geo';
@@ -35,7 +35,7 @@ export const bakeriesRouter = Router();
  *         description: 제공 시 각 빵집의 예상 도보 소모 칼로리(estimated_walk_calories)를 함께 계산
  *     responses:
  *       200:
- *         description: 빵집 목록 (walk_recommended, estimated_walk_calories 포함)
+ *         description: 빵집 목록 (walk_recommended, estimated_walk_calories, suggested_walk 포함 — suggested_walk는 도보 비권장(1.2km 초과) 빵집에 user_weight 제공 시에만 채워짐)
  *       400:
  *         description: lat, lng 누락
  */
@@ -81,25 +81,42 @@ bakeriesRouter.get(
       withDistance.sort((a, b) => a.distanceM - b.distanceM);
     }
 
-    res.json({
-      bakeries: withDistance.map(({ bakery, distanceM, isOpenNow }) => ({
-        id: bakery.id,
-        name: bakery.name,
-        latitude: bakery.latitude,
-        longitude: bakery.longitude,
-        address: bakery.address,
-        rating: bakery.rating,
-        review_count: bakery.reviewCount,
-        opening_hours: bakery.openingHours,
-        distance_m: Math.round(distanceM),
-        is_open_now: isOpenNow,
-        walk_recommended: distanceM <= WALK_RECOMMEND_THRESHOLD_M,
-        estimated_walk_calories:
-          userWeight !== undefined
-            ? calculateCaloriesBurned(userWeight, estimateWalkMinutes(distanceM)).caloriesBurned
-            : null,
-      })),
-    });
+    // 1.2km 초과(도보 비권장) 빵집에 한해 근처 공원 산책 미리보기를 붙인다 (idea.md §3) — 체중이
+    // 있어야 칼로리를 계산할 수 있으므로 user_weight 제공 시에만. 빵집별로 TourAPI를 병렬 호출한다.
+    const bakeriesResponse = await Promise.all(
+      withDistance.map(async ({ bakery, distanceM, isOpenNow }) => {
+        const walkRecommended = distanceM <= WALK_RECOMMEND_THRESHOLD_M;
+        const suggestedWalk =
+          !walkRecommended && userWeight !== undefined
+            ? await buildParkWalkSuggestion({
+                latitude: bakery.latitude,
+                longitude: bakery.longitude,
+                userWeightKg: userWeight,
+              })
+            : null;
+
+        return {
+          id: bakery.id,
+          name: bakery.name,
+          latitude: bakery.latitude,
+          longitude: bakery.longitude,
+          address: bakery.address,
+          rating: bakery.rating,
+          review_count: bakery.reviewCount,
+          opening_hours: bakery.openingHours,
+          distance_m: Math.round(distanceM),
+          is_open_now: isOpenNow,
+          walk_recommended: walkRecommended,
+          estimated_walk_calories:
+            userWeight !== undefined
+              ? calculateCaloriesBurned(userWeight, estimateWalkMinutes(distanceM)).caloriesBurned
+              : null,
+          suggested_walk: suggestedWalk,
+        };
+      }),
+    );
+
+    res.json({ bakeries: bakeriesResponse });
   }),
 );
 
