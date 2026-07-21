@@ -33,10 +33,10 @@ async function main() {
     },
   });
 
-  // source_grade: ppangkal.md §2.2에서 직접 조사·정제해 확보한 가격/칼로리 데이터이므로 'B'.
+  // source_grade: legacy/ppangkal.md §2.2에서 직접 조사·정제해 확보한 가격/칼로리 데이터이므로 'B'.
   // 영양 성분(carb_g/protein_g/fat_g/base_weight_g)은 아직 확보되지 않아 NULL로 둔다 — 임의로
   // 지어내지 않는다.
-  const SOURCE_NOTE = 'ppangkal.md 최종판 §2.2 자체 조사 데이터';
+  const SOURCE_NOTE = 'legacy/ppangkal.md §2.2 자체 조사 데이터';
 
   const sungsimdangItems = [
     { name: '튀김소보로', category: '빵', price: 2200, calories: 343 },

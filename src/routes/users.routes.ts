@@ -7,7 +7,20 @@ import { asyncHandler } from '../utils/asyncHandler';
 export const usersRouter = Router();
 usersRouter.use(requireAuth);
 
-// GET /api/users/me — ppangkal.md §12.2
+/**
+ * @openapi
+ * /users/me:
+ *   get:
+ *     tags: [Users]
+ *     summary: 내 프로필 조회
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200:
+ *         description: 프로필 정보
+ *       404:
+ *         description: 사용자 없음
+ */
+// GET /api/users/me — legacy/ppangkal.md §12.2
 usersRouter.get(
   '/me',
   asyncHandler(async (req, res) => {
@@ -27,6 +40,28 @@ usersRouter.get(
   }),
 );
 
+/**
+ * @openapi
+ * /users/me:
+ *   patch:
+ *     tags: [Users]
+ *     summary: 내 프로필 부분 수정 (체중/키/나이/활동량/목표 칼로리)
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               weight: { type: number }
+ *               height: { type: number }
+ *               age: { type: integer }
+ *               activity_level: { type: string, enum: ['여행 휴식', '관광', '도보여행'] }
+ *               daily_goal_calories: { type: integer }
+ *     responses:
+ *       200:
+ *         description: 수정된 프로필
+ */
 // PATCH /api/users/me — 체중/활동량/목표 칼로리 등 부분 수정
 usersRouter.patch(
   '/me',

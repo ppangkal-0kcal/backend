@@ -1,4 +1,4 @@
-// ppangkal.md §12.0 공통 에러 응답 형식: { error: { code, message } }
+// legacy/ppangkal.md §12.0 공통 에러 응답 형식: { error: { code, message } }
 export class ApiError extends Error {
   statusCode: number;
   code: string;

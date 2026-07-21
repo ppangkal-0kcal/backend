@@ -5,25 +5,17 @@ import {
 } from '../calorieService';
 
 describe('calculateCaloriesBurned', () => {
-  it('applies the formula from ppangkal.md §2.3: 70kg, walk, 12min', () => {
-    // 3.5 × 70 × 0.2 × 1.05 = 51.45 -> 51. Note: ppangkal.md's own worked example
-    // text says "51.5kcal" / "약 52kcal", but that doesn't match its own formula —
-    // we follow the formula, not the doc's rounded display text.
-    const result = calculateCaloriesBurned(70, 'walk', 12);
+  it('applies the walk-only formula (idea.md §4): 70kg, 12min', () => {
+    // 3.5 × 70 × 0.2 × 1.05 = 51.45 -> 51.
+    const result = calculateCaloriesBurned(70, 12);
     expect(result.metValue).toBe(3.5);
     expect(result.caloriesBurned).toBe(51);
   });
 
-  it('uses the bike MET value', () => {
-    const result = calculateCaloriesBurned(70, 'bike', 30);
-    expect(result.metValue).toBe(6.8);
-    expect(result.caloriesBurned).toBe(250);
-  });
-
-  it('uses the bus MET value', () => {
-    const result = calculateCaloriesBurned(70, 'bus', 30);
-    expect(result.metValue).toBe(1.3);
-    expect(result.caloriesBurned).toBe(48);
+  it('scales with duration', () => {
+    const result = calculateCaloriesBurned(70, 30);
+    expect(result.metValue).toBe(3.5);
+    expect(result.caloriesBurned).toBe(129);
   });
 });
 

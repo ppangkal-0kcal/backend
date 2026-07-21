@@ -1,7 +1,8 @@
 .claude/
 CLAUDE.md
-ppangkal.md
-bbangkal_erd_v3.md
+idea.md
+tech-stack.md
+legacy/
 *.pdf
 
 node_modules/

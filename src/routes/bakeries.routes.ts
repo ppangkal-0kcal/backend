@@ -1,12 +1,44 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
+import { calculateCaloriesBurned, estimateWalkMinutes, WALK_RECOMMEND_THRESHOLD_M } from '../services/calorieService';
 import { ApiError } from '../utils/ApiError';
 import { asyncHandler } from '../utils/asyncHandler';
 import { haversineDistanceM, isBakeryOpenNow } from '../utils/geo';
 
 export const bakeriesRouter = Router();
 
-// GET /api/bakeries — ppangkal.md §12.3 (자체 DB 기준. 큐레이션 전 발굴은 Kakao Local API로 별도 확장 가능)
+/**
+ * @openapi
+ * /bakeries:
+ *   get:
+ *     tags: [Bakeries]
+ *     summary: 주변 빵집 목록 (거리/평점/추천순 정렬)
+ *     parameters:
+ *       - in: query
+ *         name: lat
+ *         required: true
+ *         schema: { type: number }
+ *       - in: query
+ *         name: lng
+ *         required: true
+ *         schema: { type: number }
+ *       - in: query
+ *         name: radius_km
+ *         schema: { type: number, default: 3 }
+ *       - in: query
+ *         name: sort
+ *         schema: { type: string, enum: [distance, rating, recommended], default: distance }
+ *       - in: query
+ *         name: user_weight
+ *         schema: { type: number }
+ *         description: 제공 시 각 빵집의 예상 도보 소모 칼로리(estimated_walk_calories)를 함께 계산
+ *     responses:
+ *       200:
+ *         description: 빵집 목록 (walk_recommended, estimated_walk_calories 포함)
+ *       400:
+ *         description: lat, lng 누락
+ */
+// GET /api/bakeries — legacy/ppangkal.md §12.3 (자체 DB 기준. 큐레이션 전 발굴은 Kakao Local API로 별도 확장 가능)
 bakeriesRouter.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -14,9 +46,13 @@ bakeriesRouter.get(
     const lng = Number(req.query.lng);
     const radiusKm = Number(req.query.radius_km ?? 3);
     const sort = (req.query.sort as string | undefined) ?? 'distance';
+    const userWeight = req.query.user_weight !== undefined ? Number(req.query.user_weight) : undefined;
 
     if (Number.isNaN(lat) || Number.isNaN(lng)) {
       throw ApiError.badRequest('lat, lng는 필수 값입니다.');
+    }
+    if (userWeight !== undefined && Number.isNaN(userWeight)) {
+      throw ApiError.badRequest('user_weight는 숫자여야 합니다.');
     }
 
     const bakeries = await prisma.bakery.findMany();
@@ -33,7 +69,7 @@ bakeriesRouter.get(
       withDistance.sort((a, b) => (b.bakery.rating ?? 0) - (a.bakery.rating ?? 0));
     } else if (sort === 'recommended') {
       // 거리 30% + 평점 20% (칼로리 적합도/영업 여부는 빵 메뉴 선택 이후에만 계산 가능하므로
-      // 이 목록 단계에서는 제외 — ppangkal.md §2.2 전체 가중치는 /api/bakeries/:id/items 선택 흐름에서 적용)
+      // 이 목록 단계에서는 제외 — legacy/ppangkal.md §2.2 전체 가중치는 /api/bakeries/:id/items 선택 흐름에서 적용)
       const maxDistance = Math.max(...withDistance.map((e) => e.distanceM), 1);
       withDistance.sort((a, b) => {
         const scoreA = 0.3 * (1 - a.distanceM / maxDistance) + 0.2 * ((a.bakery.rating ?? 0) / 5);
@@ -56,12 +92,32 @@ bakeriesRouter.get(
         opening_hours: bakery.openingHours,
         distance_m: Math.round(distanceM),
         is_open_now: isOpenNow,
+        walk_recommended: distanceM <= WALK_RECOMMEND_THRESHOLD_M,
+        estimated_walk_calories:
+          userWeight !== undefined
+            ? calculateCaloriesBurned(userWeight, estimateWalkMinutes(distanceM)).caloriesBurned
+            : null,
       })),
     });
   }),
 );
 
-// GET /api/bakeries/:bakeryId/items — ppangkal.md §12.3
+/**
+ * @openapi
+ * /bakeries/{bakeryId}/items:
+ *   get:
+ *     tags: [Bakeries]
+ *     summary: 빵집의 빵 메뉴 목록
+ *     parameters:
+ *       - in: path
+ *         name: bakeryId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: 빵 메뉴 목록
+ */
+// GET /api/bakeries/:bakeryId/items — legacy/ppangkal.md §12.3
 bakeriesRouter.get(
   '/:bakeryId/items',
   asyncHandler(async (req, res) => {
