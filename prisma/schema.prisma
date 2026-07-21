@@ -35,6 +35,10 @@ model Bakery {
   reviewCount  Int?     @map("review_count")
   openingHours String?  @map("opening_hours")
   createdAt    DateTime @default(now()) @map("created_at")
+  // 기획팀이 한국관광공사 TourAPI(음식점, contentTypeId=39)에서 이 빵집을 직접 찾아 매칭한
+  // content_id. 등록 안 된(주로 소규모) 빵집은 NULL로 두고 자체 조사 데이터만 쓴다 — 이름으로
+  // 자동 매칭하지 않는다 (동명이인 매장 오매칭 위험).
+  tourContentId String? @map("tour_content_id")
 
   breadItems BreadItem[]
   tourStops  TourStop[]
@@ -136,6 +140,7 @@ model TourStop {
   @@map("tour_stops")
 }
 
+// 섭취 사진은 서버에 업로드하지 않는다 — 사용자 기기 갤러리에만 보관 (프론트엔드 전용 기능).
 model FoodLog {
   id         String   @id @default(cuid())
   userId     String   @map("user_id")
@@ -143,7 +148,6 @@ model FoodLog {
   tourStopId String?  @map("tour_stop_id")
   calories   Int
   quantity   Int      @default(1)
-  photoUrl   String?  @map("photo_url")
   loggedAt   DateTime @default(now()) @map("logged_at")
 
   user      User      @relation(fields: [userId], references: [id])

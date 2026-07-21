@@ -26,10 +26,26 @@ interface DetailCommonItem {
   usetime?: string;
   mapx: string;
   mapy: string;
+  tel?: string;
+  homepage?: string;
+  firstimage?: string;
+  firstimage2?: string;
 }
 
 interface DetailImageItem {
   originimgurl: string;
+}
+
+// 음식점(contentTypeId=39) 전용 부가정보 — detailIntro2 응답. 대표/추천 메뉴, 영업정보 등
+// detailCommon2엔 없는 필드가 여기 있다.
+interface DetailIntroFoodItem {
+  firstmenu?: string;
+  treatmenu?: string;
+  opentimefood?: string;
+  restdatefood?: string;
+  parkingfood?: string;
+  packing?: string;
+  infocenterfood?: string;
 }
 
 export interface NearbySpot {
@@ -119,6 +135,57 @@ export async function findNearbyPark(params: {
 
   // arrange: 'E'로 이미 거리순 정렬되지만, 가장 가까운 항목을 명시적으로 보장한다.
   return spots.reduce((closest, spot) => (spot.distanceM < closest.distanceM ? spot : closest));
+}
+
+export interface RestaurantEnrichment {
+  overview: string | null;
+  tel: string | null;
+  homepageUrls: string[];
+  images: string[];
+  signatureMenu: string | null;
+  recommendedMenu: string | null;
+  openTime: string | null;
+  restDate: string | null;
+  parking: string | null;
+  packaging: string | null;
+}
+
+// TourAPI의 homepage 필드는 <a href="...">...</a> 형태의 HTML 조각을 그대로 준다 — API 응답에
+// HTML을 그대로 흘려보내지 않고 URL만 뽑아 배열로 정리한다.
+function extractHrefs(html?: string): string[] {
+  if (!html) return [];
+  return [...html.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
+}
+
+// 빵집을 TourAPI 음식점(contentTypeId=39) 콘텐츠로 등록해둔 경우에만 호출 — 대표/추천 메뉴,
+// 소개글, 사진, 영업정보를 보강한다. 등록 안 된 빵집(Bakery.tourContentId가 NULL)에는 쓰지 않음.
+export async function fetchRestaurantEnrichment(contentId: string): Promise<RestaurantEnrichment> {
+  const [commonRes, introRes] = await Promise.all([
+    fetch(buildUrl('detailCommon2', { contentId })),
+    fetch(buildUrl('detailIntro2', { contentId, contentTypeId: 39 })),
+  ]);
+
+  if (!commonRes.ok) throw new Error(`TourAPI detailCommon2 요청 실패: ${commonRes.status}`);
+  if (!introRes.ok) throw new Error(`TourAPI detailIntro2 요청 실패: ${introRes.status}`);
+
+  const commonData = (await commonRes.json()) as TourApiResponse<DetailCommonItem>;
+  const introData = (await introRes.json()) as TourApiResponse<DetailIntroFoodItem>;
+
+  const [common] = toArray(commonData.response.body.items);
+  const [intro] = toArray(introData.response.body.items);
+
+  return {
+    overview: common?.overview || null,
+    tel: common?.tel || null,
+    homepageUrls: extractHrefs(common?.homepage),
+    images: [common?.firstimage, common?.firstimage2].filter((url): url is string => Boolean(url)),
+    signatureMenu: intro?.firstmenu || null,
+    recommendedMenu: intro?.treatmenu || null,
+    openTime: intro?.opentimefood || null,
+    restDate: intro?.restdatefood || null,
+    parking: intro?.parkingfood || null,
+    packaging: intro?.packing || null,
+  };
 }
 
 export async function fetchSpotDetail(contentId: string): Promise<SpotDetail> {

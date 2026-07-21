@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { calculateCaloriesBurned, estimateWalkMinutes, WALK_RECOMMEND_THRESHOLD_M } from '../services/calorieService';
+import { fetchRestaurantEnrichment } from '../services/tourApiService';
 import { ApiError } from '../utils/ApiError';
 import { asyncHandler } from '../utils/asyncHandler';
 import { haversineDistanceM, isBakeryOpenNow } from '../utils/geo';
@@ -101,6 +102,68 @@ bakeriesRouter.get(
     });
   }),
 );
+
+/**
+ * @openapi
+ * /bakeries/{bakeryId}:
+ *   get:
+ *     tags: [Bakeries]
+ *     summary: 빵집 상세 (TourAPI 등록 업체는 tour_info로 소개글/사진/대표메뉴/영업정보 보강)
+ *     parameters:
+ *       - in: path
+ *         name: bakeryId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: 빵집 상세. tour_info는 tour_content_id가 없거나 TourAPI 호출 실패 시 null
+ *       404:
+ *         description: 빵집 없음
+ */
+// GET /api/bakeries/:bakeryId — 자체 큐레이션 필드 + (등록된 경우) TourAPI 보강 정보
+bakeriesRouter.get(
+  '/:bakeryId',
+  asyncHandler(async (req, res) => {
+    const bakery = await prisma.bakery.findUnique({ where: { id: req.params.bakeryId } });
+    if (!bakery) throw ApiError.notFound('빵집을 찾을 수 없습니다.');
+
+    const tourInfo = bakery.tourContentId ? await fetchTourInfoSafely(bakery.tourContentId) : null;
+
+    res.json({
+      id: bakery.id,
+      name: bakery.name,
+      latitude: bakery.latitude,
+      longitude: bakery.longitude,
+      address: bakery.address,
+      rating: bakery.rating,
+      review_count: bakery.reviewCount,
+      opening_hours: bakery.openingHours,
+      is_open_now: isBakeryOpenNow(bakery.openingHours),
+      tour_info: tourInfo,
+    });
+  }),
+);
+
+// TourAPI 호출 실패는 부가 정보(보강)일 뿐이므로 빵집 상세 조회 자체를 막지 않고 null로 넘어간다.
+async function fetchTourInfoSafely(contentId: string) {
+  try {
+    const enrichment = await fetchRestaurantEnrichment(contentId);
+    return {
+      overview: enrichment.overview,
+      tel: enrichment.tel,
+      homepage_urls: enrichment.homepageUrls,
+      images: enrichment.images,
+      signature_menu: enrichment.signatureMenu,
+      recommended_menu: enrichment.recommendedMenu,
+      open_time: enrichment.openTime,
+      rest_date: enrichment.restDate,
+      parking: enrichment.parking,
+      packaging: enrichment.packaging,
+    };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * @openapi

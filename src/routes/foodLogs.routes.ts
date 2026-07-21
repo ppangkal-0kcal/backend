@@ -25,7 +25,6 @@ foodLogsRouter.use(requireAuth);
  *               bread_item_id: { type: string }
  *               tour_stop_id: { type: string, nullable: true }
  *               quantity: { type: integer, default: 1 }
- *               photo_url: { type: string, nullable: true }
  *     responses:
  *       201:
  *         description: 생성된 섭취 기록
@@ -42,12 +41,10 @@ foodLogsRouter.post(
       bread_item_id: breadItemId,
       tour_stop_id: tourStopId,
       quantity = 1,
-      photo_url: photoUrl = null,
     } = req.body as {
       bread_item_id?: string;
       tour_stop_id?: string | null;
       quantity?: number;
-      photo_url?: string | null;
     };
 
     if (!breadItemId) throw ApiError.badRequest('bread_item_id는 필수 값입니다.');
@@ -67,7 +64,6 @@ foodLogsRouter.post(
         tourStopId: tourStopId ?? undefined,
         calories: breadItem.calories,
         quantity,
-        photoUrl,
       },
     });
 
@@ -119,7 +115,6 @@ foodLogsRouter.get(
         tour_stop_id: log.tourStopId,
         calories: log.calories,
         quantity: log.quantity,
-        photo_url: log.photoUrl,
         logged_at: log.loggedAt,
       })),
     });

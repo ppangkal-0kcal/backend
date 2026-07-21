@@ -101,6 +101,8 @@ Prisma 스키마: `prisma/schema.prisma`. 주요 테이블:
   계수로 서버가 자동 계산한다.
 - `bakeries` / `bread_items` — 빵집과 메뉴 (대전 성심당·몽심, 자체 조사 데이터).
   `bread_items.source_grade`(A/B/C)로 데이터 신뢰도를 표시하며, C등급은 근거(`source_note`) 필수.
+  `bakeries.tour_content_id`가 있으면(TourAPI 음식점으로 등록된 유명 빵집만) `GET /api/bakeries/:id`가
+  소개글/사진/대표메뉴/영업정보를 TourAPI로 보강해 내려준다 — 없으면 자체 데이터만 반환.
 - `tours` / `tour_stops` — 빵투어 세션과 빵집 방문 기록. 한 투어에 여러 빵집을 방문할 수 있고,
   거리/시간/걸음 수는 클라이언트(만보기 + GPS 속도 필터) 실측값이다. 투어 종료 시점의 총 걸음
   수/거리/소모·섭취 칼로리를 스냅샷(`total_*`, `balance_kcal`)으로 저장해, 이후 `food_logs`가
@@ -136,3 +138,9 @@ Prisma 스키마: `prisma/schema.prisma`. 주요 테이블:
   칼로리 미리보기 계산은 제외)
 
 전체 스펙은 서버 실행 후 `/api-docs`(Swagger UI)에서 확인.
+
+## 프론트엔드 연동
+
+Flutter 클라이언트를 만든다면 [`FRONTEND_API_GUIDE.md`](./FRONTEND_API_GUIDE.md)를 먼저 보는 걸
+추천한다 — 8단계 사용자 흐름에 어떤 API를 언제 호출해야 하는지, 그리고 백엔드에 없어서 프론트가
+직접 구현해야 하는 것(백그라운드 센서, 지도 딥링크 등)이 정리돼 있다.

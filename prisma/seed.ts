@@ -15,6 +15,8 @@ async function main() {
       rating: 4.6,
       reviewCount: 21034,
       openingHours: '08:00-22:00',
+      // TourAPI(음식점, contentTypeId=39)에 등록돼 있음을 실제 조회로 확인한 content_id.
+      tourContentId: '1796079',
     },
   });
 
@@ -30,6 +32,7 @@ async function main() {
       rating: 4.4,
       reviewCount: 892,
       openingHours: '10:00-21:00',
+      // TourAPI 미등록 확인됨 (locationBasedList2로 인근 음식점 검색 시 안 나옴) — tourContentId 없음.
     },
   });
 
